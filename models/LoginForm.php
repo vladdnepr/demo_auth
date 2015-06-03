@@ -50,7 +50,7 @@ class LoginForm extends Model
                 if ($user) {
                     $user -> addFailTry();
                 }
-                $this->addError($attribute, 'Incorrect username or password.');
+                $this->addError($attribute, 'Неверные данные.');
             }
         }
     }
@@ -71,7 +71,7 @@ class LoginForm extends Model
                 $fail = $user -> getFailData();
 
                 if ($fail['tries'] >= 3) {
-                    $this->addError($attribute, 'You are banned. Try after ' . ceil(($fail['timestamp'] + 300 - time()) / 60) . ' minutes.');
+                    $this->addError($attribute, 'Попробуйте еще раз через ' . ($fail['timestamp'] + 300 - time()) . ' секунд.');
                 }
             }
         }
