@@ -4,6 +4,9 @@ namespace app\models;
 
 class User extends \yii\base\Object implements \yii\web\IdentityInterface
 {
+    const USERS_CSV_PATH = 'data/users.csv';
+    const FAIL_CSV_PATH = 'data/failedauth.csv';
+
     public $id;
     public $username;
     public $password;
@@ -11,11 +14,12 @@ class User extends \yii\base\Object implements \yii\web\IdentityInterface
     public $accessToken;
 
     private static $users;
+    private static $failAuth;
 
     protected static function getUsers()
     {
         if (!static::$users) {
-            if (($handle = fopen(\Yii::$app->getBasePath() . DIRECTORY_SEPARATOR . 'data/users.csv', "r")) !== FALSE) {
+            if (($handle = fopen(\Yii::$app->getBasePath() . DIRECTORY_SEPARATOR . self::USERS_CSV_PATH, "r")) !== FALSE) {
                 while (($data = fgetcsv($handle, 1000, ";")) !== FALSE) {
                     static::$users[$data[0]] = array_combine(array(
                         'id', 'username', 'password', 'authKey', 'accessToken'
@@ -26,6 +30,20 @@ class User extends \yii\base\Object implements \yii\web\IdentityInterface
         }
 
         return self::$users;
+    }
+
+    protected static function geFailAuthData()
+    {
+        if (!static::$failAuth) {
+            if (($handle = fopen(\Yii::$app->getBasePath() . DIRECTORY_SEPARATOR . self::FAIL_CSV_PATH, "r")) !== FALSE) {
+                while (($data = fgetcsv($handle, 1000, ";")) !== FALSE) {
+                    static::$failAuth[(int)$data[0]] = $data;
+                }
+                fclose($handle);
+            }
+        }
+
+        return self::$failAuth;
     }
 
     /**
@@ -101,5 +119,44 @@ class User extends \yii\base\Object implements \yii\web\IdentityInterface
     public function validatePassword($password)
     {
         return $this->password === $password;
+    }
+
+    public function getFailData()
+    {
+        $fails_data = self::geFailAuthData();
+        return isset($fails_data[$this -> id]) ? array_combine(array('id', 'tries', 'timestamp'), $fails_data[$this -> id]) : NULL;
+    }
+
+    public function addFailTry()
+    {
+        self::geFailAuthData();
+
+        $tries = 0;
+
+        if (isset(self::$failAuth[$this -> id])) {
+            $tries = self::$failAuth[$this -> id][1];
+        }
+
+        self::$failAuth[$this -> id] = array($this -> id, ++$tries, time());
+
+        self::writeTries();
+    }
+
+    public function tryResetBan()
+    {
+        $fail = $this -> getFailData();
+
+        if ($fail && ($fail['tries'] >= 3 && ($fail['timestamp'] + 300) < time())) {
+            self::$failAuth[$this -> id] = array($this -> id, 0, time());
+            self::writeTries();
+        }
+    }
+    protected static function writeTries()
+    {
+        $handle = fopen(\Yii::$app->getBasePath() . DIRECTORY_SEPARATOR . self::FAIL_CSV_PATH, "w");
+        foreach (array_values(self::$failAuth) as $fields) {
+            fputcsv($handle, $fields, ';');
+        }
+        fclose($handle);
     }
 }

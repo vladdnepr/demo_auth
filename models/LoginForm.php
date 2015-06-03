@@ -25,6 +25,8 @@ class LoginForm extends Model
         return [
             // username and password are both required
             [['username', 'password'], 'required'],
+            // Check user is banned by many tries with wrong password
+            ['password', 'validateFail2Ban'],
             // rememberMe must be a boolean value
             ['rememberMe', 'boolean'],
             // password is validated by validatePassword()
@@ -45,7 +47,32 @@ class LoginForm extends Model
             $user = $this->getUser();
 
             if (!$user || !$user->validatePassword($this->password)) {
+                if ($user) {
+                    $user -> addFailTry();
+                }
                 $this->addError($attribute, 'Incorrect username or password.');
+            }
+        }
+    }
+
+    /**
+     * Validates the tries.
+     *
+     * @param string $attribute the attribute currently being validated
+     * @param array $params the additional name-value pairs given in the rule
+     */
+    public function validateFail2Ban($attribute, $params)
+    {
+        if (!$this->hasErrors()) {
+            $user = $this->getUser();
+
+            if ($user) {
+                $user -> tryResetBan();
+                $fail = $user -> getFailData();
+
+                if ($fail['tries'] >= 3) {
+                    $this->addError($attribute, 'You are banned. Try after ' . ceil(($fail['timestamp'] + 300 - time()) / 60) . ' minutes.');
+                }
             }
         }
     }
