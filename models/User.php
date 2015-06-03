@@ -10,29 +10,31 @@ class User extends \yii\base\Object implements \yii\web\IdentityInterface
     public $authKey;
     public $accessToken;
 
-    private static $users = [
-        '100' => [
-            'id' => '100',
-            'username' => 'admin',
-            'password' => 'admin',
-            'authKey' => 'test100key',
-            'accessToken' => '100-token',
-        ],
-        '101' => [
-            'id' => '101',
-            'username' => 'demo',
-            'password' => 'demo',
-            'authKey' => 'test101key',
-            'accessToken' => '101-token',
-        ],
-    ];
+    private static $users;
+
+    protected static function getUsers()
+    {
+        if (!static::$users) {
+            if (($handle = fopen(\Yii::$app->getBasePath() . DIRECTORY_SEPARATOR . 'data/users.csv', "r")) !== FALSE) {
+                while (($data = fgetcsv($handle, 1000, ";")) !== FALSE) {
+                    static::$users[$data[0]] = array_combine(array(
+                        'id', 'username', 'password', 'authKey', 'accessToken'
+                    ), $data);
+                }
+                fclose($handle);
+            }
+        }
+
+        return self::$users;
+    }
 
     /**
      * @inheritdoc
      */
     public static function findIdentity($id)
     {
-        return isset(self::$users[$id]) ? new static(self::$users[$id]) : null;
+        $users = self::getUsers();
+        return isset($users[$id]) ? new static($users[$id]) : null;
     }
 
     /**
@@ -40,7 +42,7 @@ class User extends \yii\base\Object implements \yii\web\IdentityInterface
      */
     public static function findIdentityByAccessToken($token, $type = null)
     {
-        foreach (self::$users as $user) {
+        foreach (self::getUsers() as $user) {
             if ($user['accessToken'] === $token) {
                 return new static($user);
             }
@@ -57,7 +59,7 @@ class User extends \yii\base\Object implements \yii\web\IdentityInterface
      */
     public static function findByUsername($username)
     {
-        foreach (self::$users as $user) {
+        foreach (self::getUsers() as $user) {
             if (strcasecmp($user['username'], $username) === 0) {
                 return new static($user);
             }
